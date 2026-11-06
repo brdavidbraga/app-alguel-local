@@ -54,7 +54,7 @@ export const rateioService = {
 
     const totalKwhInformado =
       despesa.consumoKwhTotal && despesa.consumoKwhTotal > 0;
-    if (totalKwhInformado && (kwhCasa1 === 0 || kwhCasa2 === 0)) {
+    if (totalKwhInformado && temKwhPorCasa && (kwhCasa1 === 0 || kwhCasa2 === 0)) {
       const totalKwhVal = despesa.consumoKwhTotal!;
       if (kwhCasa1 === 0) kwhCasa1 = Math.max(0, totalKwhVal - kwhCasa2);
       if (kwhCasa2 === 0) kwhCasa2 = Math.max(0, totalKwhVal - kwhCasa1);
@@ -65,6 +65,7 @@ export const rateioService = {
     if (temKwhPorCasa && totalKwhInformado && Math.abs(kwhCasa1 + kwhCasa2 - totalKwh) > 0.001) throw new Error('A soma dos consumos por casa difere do consumo total.');
 
     // Luz rateada pelo kWh consumido pela casa
+    if (temKwhPorCasa && totalKwh <= 0) throw new Error('Informe consumo de energia maior que zero.');
     if (temKwhPorCasa && totalKwh > 0) {
       valorPorCasa1 = roundMoney((despesa.valorTotal * kwhCasa1) / totalKwh);
       valorPorCasa2 = roundMoney(despesa.valorTotal - valorPorCasa1);
@@ -177,7 +178,7 @@ export const rateioService = {
     const totalPorInquilino = roundMoney(totalPorCasa / casa.quantidadePessoas);
 
     // Log detalhado do cálculo
-    console.log('=== CÁLCULO TOTAL POR INQUILINO ===');
+    console.log('=== CÁLCULO TOTAL POR CASA ===');
     console.log(`Casa: ${casa.nome} (ID: ${casaId})`);
     console.log(`Mês: ${mes}`);
     console.log(`Quantidade de Pessoas: ${casa.quantidadePessoas}`);
@@ -199,7 +200,7 @@ export const rateioService = {
     console.log(`  + R$ ${agua.valorTotalPorCasa.toFixed(2)} (Água - valor total da casa)`);
     console.log(`  + R$ ${valorLuzPorCasa.toFixed(2)} (Luz - valor total da casa)`);
     console.log(`  + R$ ${outrasDespesasTotal.toFixed(2)} (Outras despesas por inquilino)`);
-    console.log(`  = R$ ${totalPorInquilino.toFixed(2)} (TOTAL POR INQUILINO)`);
+    console.log(`  = R$ ${totalPorCasa.toFixed(2)} (TOTAL POR CASA)`);
     console.log('=====================================');
 
     return {
