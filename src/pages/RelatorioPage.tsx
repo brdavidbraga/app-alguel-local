@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Casa, Despesa, DespesaLuz } from '../types';
+import { Casa, Despesa, DespesaAgua } from '../types';
 import { storageService } from '../services/storage';
-import { calcularProporcionalidadePrimeiraLuz, rateioService } from '../services/rateioService';
+import { calcularProporcionalidadePrimeiraAgua, rateioService } from '../services/rateioService';
 
 export function RelatorioPage() {
   const [casas] = useState<Casa[]>(() => storageService.getCasas());
@@ -40,25 +40,26 @@ export function RelatorioPage() {
 
   const casasAtivas = casas.filter(c => c.status === 'ativo');
   const casaAtual = casas.find(c => c.id === casaSelecionada);
-  const despesaLuzSelecionada = despesas.find((d): d is DespesaLuz =>
-    d.tipo === 'luz' && d.mes === mes &&
-    (d.casa1Id === casaSelecionada || d.casa2Id === casaSelecionada)
+  const despesasAguaMes = despesas.filter((d): d is DespesaAgua =>
+    d.tipo === 'agua' && d.mes === mes
   );
-  const valorIntegralLuz = relatorio?.proporcionalidadeLuz?.valorIntegral ??
-    (despesaLuzSelecionada && relatorio?.luz
-      ? (despesaLuzSelecionada.casa1Id === casaSelecionada
-          ? relatorio.luz.valorPorCasa1 : relatorio.luz.valorPorCasa2)
-      : 0);
-  const simulacaoLuz = casaAtual && despesaLuzSelecionada && relatorio?.luz
-    ? calcularProporcionalidadePrimeiraLuz(casaAtual, despesaLuzSelecionada, valorIntegralLuz)
+  const despesaAguaSelecionada = despesasAguaMes[0];
+  const contaAguaConsolidada = despesaAguaSelecionada
+    ? { ...despesaAguaSelecionada, valorTotal: despesasAguaMes.reduce((total, d) => total + d.valorTotal, 0) }
     : null;
-  const proporcionalAtivada = !!despesaLuzSelecionada?.casasPrimeiraCobrancaProporcional?.includes(casaSelecionada);
+  const rateioAguaIntegral = casaAtual && contaAguaConsolidada && casaAtual.status === 'ativo'
+    ? rateioService.calcularRateioAgua(contaAguaConsolidada, casaAtual, casasAtivas)
+    : null;
+  const simulacaoAgua = casaAtual && contaAguaConsolidada && rateioAguaIntegral
+    ? calcularProporcionalidadePrimeiraAgua(casaAtual, contaAguaConsolidada, rateioAguaIntegral)
+    : null;
+  const proporcionalAtivada = !!despesaAguaSelecionada?.casasPrimeiraCobrancaProporcional?.includes(casaSelecionada);
 
   const alterarProporcionalidade = (ativar: boolean) => {
-    if (!despesaLuzSelecionada || !simulacaoLuz) return;
-    const outrasCasas = (despesaLuzSelecionada.casasPrimeiraCobrancaProporcional ?? [])
+    if (!despesaAguaSelecionada || !simulacaoAgua) return;
+    const outrasCasas = (despesaAguaSelecionada.casasPrimeiraCobrancaProporcional ?? [])
       .filter(id => id !== casaSelecionada);
-    const atualizadas = despesas.map(d => d.id === despesaLuzSelecionada.id
+    const atualizadas = despesas.map(d => d.id === despesaAguaSelecionada.id
       ? { ...d, casasPrimeiraCobrancaProporcional: ativar ? [...outrasCasas, casaSelecionada] : outrasCasas }
       : d);
     setDespesas(atualizadas);
@@ -107,31 +108,35 @@ export function RelatorioPage() {
             Relatório - {relatorio.casaNome} - {formatMes(mes)}
           </h2>
 
-          {despesaLuzSelecionada && (simulacaoLuz || casaAtual?.dataInicioContrato.slice(0, 7) === mes) && (
+          {despesaAguaSelecionada && (simulacaoAgua || casaAtual?.dataInicioContrato.slice(0, 7) === mes) && (
             <div className="relatorio-section">
-              <h3>Primeira cobrança de energia</h3>
-              {simulacaoLuz ? (
+              <h3>Primeira cobrança de água</h3>
+              {simulacaoAgua ? (
                 <>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input type="checkbox" checked={proporcionalAtivada}
                       onChange={e => alterarProporcionalidade(e.target.checked)} />
-                    Aplicar proporcionalidade de luz na primeira cobrança
+                    Aplicar proporcionalidade de água na primeira cobrança
                   </label>
                   <p>
-                    Entrada: {simulacaoLuz.dataEntrada.split('-').reverse().join('/')} |
-                    Leituras: {simulacaoLuz.dataLeituraAnterior.split('-').reverse().join('/')} a{' '}
-                    {simulacaoLuz.dataLeituraAtual.split('-').reverse().join('/')}
+                    Entrada: {simulacaoAgua.dataEntrada.split('-').reverse().join('/')} |
+                    Leituras: {simulacaoAgua.dataLeituraAnterior.split('-').reverse().join('/')} a{' '}
+                    {simulacaoAgua.dataLeituraAtual.split('-').reverse().join('/')}
                   </p>
                   <p>
-                    {simulacaoLuz.diasOcupacao} dias de ocupação / {simulacaoLuz.diasCiclo} dias do ciclo.
-                    Valor integral da casa: R$ {simulacaoLuz.valorIntegral.toFixed(2)}.
-                    Valor proporcional estimado: R$ {simulacaoLuz.valorProporcional.toFixed(2)}.
+                    {simulacaoAgua.diasOcupacao} dias de ocupação / {simulacaoAgua.diasCiclo} dias do ciclo.
+                    Valor integral da casa: R$ {simulacaoAgua.valorIntegral.toFixed(2)}.
+                    Valor proporcional estimado: R$ {simulacaoAgua.valorProporcional.toFixed(2)}.
                   </p>
-                  <small>A estimativa considera consumo diário uniforme. O aluguel e a água não são alterados.</small>
+                  <p>
+                    Taxa fixa proporcional: R$ {simulacaoAgua.taxaFixaProporcional.toFixed(2)} |
+                    Parcela variável proporcional: R$ {simulacaoAgua.valorVariavelProporcional.toFixed(2)}
+                  </p>
+                  <small>Estimativa por dias de ocupação. A diferença não é repassada às outras casas; aluguel e luz não mudam.</small>
                 </>
               ) : (
-                <p>Para calcular a primeira cobrança proporcional, informe em Despesas Mensais
-                  as datas da leitura anterior e atual da companhia. A entrada deve estar entre essas datas.</p>
+                <p>Para calcular a primeira cobrança proporcional de água, informe em Despesas Mensais → Água
+                  as datas de leitura anterior e atual da companhia. A entrada deve estar entre elas.</p>
               )}
             </div>
           )}
@@ -153,7 +158,7 @@ export function RelatorioPage() {
                   </tr>
                   <tr>
                     <td>
-                      Água (Valor Total)
+                      {relatorio.proporcionalidadeAgua ? 'Água (primeira cobrança proporcional)' : 'Água (Valor Total)'}
                     </td>
                     <td>R$ {relatorio.agua.valorTotalPorCasa.toFixed(2)}</td>
                   </tr>
@@ -179,7 +184,7 @@ export function RelatorioPage() {
                     })();
                     return (
                       <tr>
-                        <td>{relatorio.proporcionalidadeLuz ? 'Luz (primeira cobrança proporcional)' : 'Luz (Valor Total)'}</td>
+                        <td>Luz (Valor Total)</td>
                         <td>
                           R$ {valorPorCasa.toFixed(2)}
                           {kwhCasa > 0 && ` (${kwhCasa.toFixed(2).replace(/\.?0+$/, '')} kWh)`}
@@ -219,8 +224,8 @@ export function RelatorioPage() {
                 )?.valorTotal.toFixed(2) || '0.00'}
               </p>
               <p>
-                <strong>Taxa Fixa por Casa:</strong> R${' '}
-                {relatorio.agua.taxaFixaCasa.toFixed(2)} (aplicado para todas as casas ativas)
+                <strong>{relatorio.proporcionalidadeAgua ? 'Taxa Fixa por Casa (proporcional):' : 'Taxa Fixa por Casa:'}</strong> R${' '}
+                {relatorio.agua.taxaFixaCasa.toFixed(2)} {relatorio.proporcionalidadeAgua ? '(somente nesta casa)' : '(aplicado para todas as casas ativas)'}
               </p>
               <p>
                 <strong>Valor Restante Total:</strong> R${' '}
@@ -235,14 +240,15 @@ export function RelatorioPage() {
                 {casas.find(c => c.id === relatorio.casaId)?.quantidadePessoas}
               </p>
               <p>
-                <strong>Valor por Pessoa (proporcional):</strong> R${' '}
+                <strong>{relatorio.proporcionalidadeAgua ? 'Valor por Pessoa (proporcional aos dias):' : 'Valor por Pessoa (rateio):'}</strong> R${' '}
                 {relatorio.agua.valorPorPessoa.toFixed(2)}
               </p>
               <p>
                 <strong>Valor Total por Casa:</strong> R${' '}
                 {relatorio.agua.valorTotalPorCasa.toFixed(2)} (Taxa Fixa: R${' '}
                 {relatorio.agua.taxaFixaCasa.toFixed(2)} + Rateio: R${' '}
-                {(relatorio.agua.valorPorPessoa * (casas.find(c => c.id === relatorio.casaId)?.quantidadePessoas || 0)).toFixed(2)})
+                {(relatorio.agua.valorVariavelPorCasa ??
+                   relatorio.agua.valorPorPessoa * (casas.find(c => c.id === relatorio.casaId)?.quantidadePessoas || 0)).toFixed(2)})
               </p>
             </div>
 
@@ -346,7 +352,7 @@ export function RelatorioPage() {
                             {(despesaLuz.valorTotal / kwhTotal).toFixed(4)}
                           </p>
                           <p>
-                            <strong>{relatorio.proporcionalidadeLuz ? 'Valor proporcional por dias da casa:' : 'Valor por Casa (kWh da casa × valor por kWh):'}</strong> R${' '}
+                            <strong>Valor por Casa (kWh da casa × valor por kWh):</strong> R${' '}
                             {valorPorCasa.toFixed(2)}
                           </p>
                         </>
@@ -356,13 +362,13 @@ export function RelatorioPage() {
                             <strong>Consumo kWh desta Casa:</strong> {kwhCasa} kWh
                           </p>
                           <p>
-                            <strong>{relatorio.proporcionalidadeLuz ? 'Valor proporcional por dias da casa:' : 'Valor por Casa (proporcional ao consumo):'}</strong> R${' '}
+                            <strong>Valor por Casa (proporcional ao consumo):</strong> R${' '}
                             {valorPorCasa.toFixed(2)}
                           </p>
                         </>
                       ) : (
                         <p>
-                          <strong>{relatorio.proporcionalidadeLuz ? 'Valor proporcional por dias da casa:' : 'Valor por Casa (50% do total):'}</strong> R${' '}
+                          <strong>Valor por Casa (50% do total):</strong> R${' '}
                           {valorPorCasa.toFixed(2)}
                         </p>
                       )}
