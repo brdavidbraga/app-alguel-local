@@ -10,26 +10,32 @@ function dataCivil(dia?: string): number | null {
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === dia ? ms : null;
 }
 
-export function calcularProporcionalidadePrimeiraLuz(
-  casa: Casa, despesa: DespesaLuz, valorIntegral: number
+export function calcularProporcionalidadePrimeiraAgua(
+  casa: Casa, despesa: DespesaAgua, rateioIntegral: RateioAgua
 ) {
   const anterior = dataCivil(despesa.dataLeituraAnterior);
   const atual = dataCivil(despesa.dataLeituraAtual);
   const entrada = dataCivil(casa.dataInicioContrato);
   if (anterior === null || atual === null || entrada === null ||
-      !(anterior < entrada && entrada < atual) || !Number.isFinite(valorIntegral) || valorIntegral < 0) {
-    return null;
-  }
+      !(anterior < entrada && entrada < atual)) return null;
+
   const diasCiclo = (atual - anterior) / 86_400_000;
   const diasOcupacao = (atual - entrada) / 86_400_000;
+  const fator = diasOcupacao / diasCiclo;
+  const valorIntegral = rateioIntegral.valorTotalPorCasa;
+  const valorProporcional = roundMoney(valorIntegral * fator);
+  const taxaFixaProporcional = roundMoney(rateioIntegral.taxaFixaCasa * fator);
   return {
     dataEntrada: casa.dataInicioContrato,
     dataLeituraAnterior: despesa.dataLeituraAnterior!,
     dataLeituraAtual: despesa.dataLeituraAtual!,
     diasCiclo,
     diasOcupacao,
-    valorIntegral: roundMoney(valorIntegral),
-    valorProporcional: roundMoney(valorIntegral * diasOcupacao / diasCiclo),
+    valorIntegral,
+    valorProporcional,
+    taxaFixaIntegral: rateioIntegral.taxaFixaCasa,
+    taxaFixaProporcional,
+    valorVariavelProporcional: roundMoney(valorProporcional - taxaFixaProporcional),
   };
 }
 
@@ -136,7 +142,7 @@ export const rateioService = {
 
     const casasAtivas = casas.filter(c => c.status === 'ativo');
 
-    const agua = despesaAgua && casa.status === 'ativo'
+    let agua = despesaAgua && casa.status === 'ativo'
       ? this.calcularRateioAgua(despesaAgua, casa, casasAtivas)
       : {
           taxaFixaCasa: 0,
@@ -145,6 +151,23 @@ export const rateioService = {
           valorTotalPorInquilino: 0,
           valorTotalPorCasa: 0,
         };
+
+    // A redução vale apenas para a casa selecionada e somente no ciclo de entrada.
+    // As demais casas preservam seu rateio integral; a diferença não é redistribuída.
+    const proporcionalidadeAgua = despesaAgua?.casasPrimeiraCobrancaProporcional?.includes(casaId)
+      ? calcularProporcionalidadePrimeiraAgua(casa, despesaAgua, agua)
+      : null;
+    if (proporcionalidadeAgua) {
+      const fator = proporcionalidadeAgua.diasOcupacao / proporcionalidadeAgua.diasCiclo;
+      agua = {
+        ...agua,
+        taxaFixaCasa: proporcionalidadeAgua.taxaFixaProporcional,
+        valorPorPessoa: roundMoney(agua.valorPorPessoa * fator),
+        valorTotalPorInquilino: roundMoney(agua.valorTotalPorInquilino * fator),
+        valorTotalPorCasa: proporcionalidadeAgua.valorProporcional,
+        valorVariavelPorCasa: proporcionalidadeAgua.valorVariavelProporcional,
+      };
+    }
 
     // Luz
     const despesaLuz = despesasMes.find(
@@ -196,18 +219,6 @@ export const rateioService = {
           : luz.valorPorCasa2;
     }
 
-    // A primeira cobrança usa a fração de dias ocupados no ciclo da companhia.
-    // Não modifica o rateio original da outra casa nem os meses seguintes.
-    const proporcionalidadeLuz = luz && despesaLuz?.casasPrimeiraCobrancaProporcional?.includes(casaId)
-      ? calcularProporcionalidadePrimeiraLuz(casa, despesaLuz, valorLuzPorCasa)
-      : null;
-    if (proporcionalidadeLuz && luz) {
-      valorLuzPorCasa = proporcionalidadeLuz.valorProporcional;
-      luz = casaId === despesaLuz!.casa1Id
-        ? { ...luz, valorPorCasa1: valorLuzPorCasa, valorPorPessoaCasa1: valorLuzPorCasa }
-        : { ...luz, valorPorCasa2: valorLuzPorCasa, valorPorPessoaCasa2: valorLuzPorCasa };
-    }
-
     // Outras despesas exibidas como total por casa
     // A despesa cadastrada representa sempre o valor total da casa.
     const outrasDespesasTotal = despesasMes.filter(d => d.tipo === 'outras' && d.casaId === casaId)
@@ -225,7 +236,7 @@ export const rateioService = {
       aluguel,
       agua,
       luz,
-      proporcionalidadeLuz,
+      proporcionalidadeAgua,
       outrasDespesas,
       totalPorInquilino,
       totalPorCasa,
