@@ -1,0 +1,13 @@
+.configuracoes-section h2 {
+  margin-bottom: 0.5rem;
+}
+
+.stat-badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  background-color: var(--bg-color);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
