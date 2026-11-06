@@ -17,6 +17,9 @@ export interface DespesaAgua {
   valorTotal: number;
   imagensComprovantes?: ImagemComprovante[]; // Imagens do comprovante da conta de água
   // Aplica para todas as casas ativas
+  dataLeituraAnterior?: string; // Data real anterior da companhia (YYYY-MM-DD)
+  dataLeituraAtual?: string; // Data real atual da companhia (YYYY-MM-DD)
+  casasPrimeiraCobrancaProporcional?: string[]; // Casas selecionadas no relatório
 }
 
 export interface ConsumoKwhPorCasa {
@@ -43,9 +46,6 @@ export interface DespesaLuz {
   consumoKwhPorCasa?: ConsumoKwhPorCasa[]; // kWh por cada casa do par
   imagensComprovantes?: ImagemComprovante[]; // Imagens dos comprovantes por casa
   imagemContador?: ImagemComprovante; // Imagem do contador/relógio de luz
-  dataLeituraAnterior?: string; // Data real da leitura anterior (YYYY-MM-DD)
-  dataLeituraAtual?: string; // Data real da leitura atual (YYYY-MM-DD)
-  casasPrimeiraCobrancaProporcional?: string[]; // Casas com opção ativada no relatório
 }
 
 export interface DespesaOutras {
@@ -66,6 +66,7 @@ export interface RateioAgua {
   valorPorPessoa: number;
   valorTotalPorInquilino: number;
   valorTotalPorCasa: number; // taxa fixa + (valor por pessoa × quantidade de pessoas)
+  valorVariavelPorCasa?: number; // Rateio variável arredondado na cobrança proporcional
 }
 
 export interface RateioLuz {
@@ -86,6 +87,18 @@ export interface RelatorioMensal {
   mes: string;
   aluguel: number;
   agua: RateioAgua;
+  proporcionalidadeAgua?: {
+    dataEntrada: string;
+    dataLeituraAnterior: string;
+    dataLeituraAtual: string;
+    diasCiclo: number;
+    diasOcupacao: number;
+    valorIntegral: number;
+    valorProporcional: number;
+    taxaFixaIntegral: number;
+    taxaFixaProporcional: number;
+    valorVariavelProporcional: number;
+  } | null;
   luz: RateioLuz | null;
   outrasDespesas: ItemRelatorio[];
   totalPorInquilino: number;
