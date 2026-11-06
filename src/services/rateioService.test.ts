@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rateioService } from './rateioService';
+import { calcularProporcionalidadePrimeiraLuz, rateioService } from './rateioService';
 import type { Casa, DespesaAgua, DespesaLuz } from '../types';
 
 const casa = (id: string, quantidadePessoas: number): Casa => ({
@@ -39,7 +39,48 @@ describe('rateios', () => {
     const r = rateioService.calcularRateioLuz(d, a, b);
     expect([r.valorPorCasa1, r.valorPorCasa2]).toEqual([150.5, 150.5]);
   });
-  it('mantém aluguel como valor total da casa', () => {
+  it('estima 12 dias de ocupação em ciclo de 31 dias na primeira cobrança', () => {
+    const novaCasa = { ...a, dataInicioContrato: '2026-11-12' };
+    const d: DespesaLuz = {
+      id: 'luz-nov', tipo: 'luz', mes: '2026-11', valorTotal: 300,
+      casa1Id: 'a', casa2Id: 'b', consumoKwhTotal: 300,
+      consumoKwhPorCasa: [{ casaId: 'a', kwh: 100 }, { casaId: 'b', kwh: 200 }],
+      dataLeituraAnterior: '2026-10-24', dataLeituraAtual: '2026-11-24',
+      casasPrimeiraCobrancaProporcional: ['a'],
+    };
+    const relatorioA = rateioService.gerarRelatorioMensal('a', '2026-11', [novaCasa, b], [d]);
+    const relatorioB = rateioService.gerarRelatorioMensal('b', '2026-11', [novaCasa, b], [d]);
+    expect(relatorioA?.proporcionalidadeLuz?.diasCiclo).toBe(31);
+    expect(relatorioA?.proporcionalidadeLuz?.diasOcupacao).toBe(12);
+    expect(relatorioA?.proporcionalidadeLuz?.valorIntegral).toBe(100);
+    expect(relatorioA?.luz?.valorPorCasa1).toBe(38.71);
+    expect(relatorioA?.totalPorCasa).toBe(1238.71);
+    expect(relatorioB?.luz?.valorPorCasa2).toBe(200);
+    expect(relatorioB?.proporcionalidadeLuz).toBeNull();
+
+    const semOpcao = rateioService.gerarRelatorioMensal('a', '2026-11', [novaCasa, b],
+      [{ ...d, casasPrimeiraCobrancaProporcional: [] }]);
+    expect(semOpcao?.luz?.valorPorCasa1).toBe(100);
+    expect(semOpcao?.totalPorCasa).toBe(1300);
+  });
+  it('não aplica proporção fora do primeiro ciclo ou com datas ausentes', () => {
+    const d: DespesaLuz = { id: 'luz', tipo: 'luz', mes: '2026-11', valorTotal: 100,
+      casa1Id: 'a', casa2Id: 'b', dataLeituraAnterior: '2026-10-24',
+      dataLeituraAtual: '2026-11-24', casasPrimeiraCobrancaProporcional: ['a'] };
+    expect(calcularProporcionalidadePrimeiraLuz(a, d, 50)).toBeNull();
+    expect(calcularProporcionalidadePrimeiraLuz({ ...a, dataInicioContrato: '2026-11-24' }, d, 50)).toBeNull();
+    expect(calcularProporcionalidadePrimeiraLuz({ ...a, dataInicioContrato: '2026-11-12' },
+      { ...d, dataLeituraAnterior: undefined }, 50)).toBeNull();
+    expect(calcularProporcionalidadePrimeiraLuz({ ...a, dataInicioContrato: '2026-02-30' }, d, 50)).toBeNull();
+  });
+  it('calcula dias reais mesmo em fevereiro de ano bissexto', () => {
+    const d: DespesaLuz = { id: 'luz', tipo: 'luz', mes: '2028-03', valorTotal: 100,
+      casa1Id: 'a', casa2Id: 'b', dataLeituraAnterior: '2028-02-24',
+      dataLeituraAtual: '2028-03-24' };
+    const r = calcularProporcionalidadePrimeiraLuz({ ...a, dataInicioContrato: '2028-03-12' }, d, 100);
+    expect([r?.diasCiclo, r?.diasOcupacao, r?.valorProporcional]).toEqual([29, 12, 41.38]);
+  });
+    it('mantém aluguel como valor total da casa', () => {
     const r = rateioService.gerarRelatorioMensal('a', '2026-11', [a,b], []);
     expect(r?.totalPorCasa).toBe(1200);
     expect(r?.totalPorInquilino).toBe(600);

@@ -39,6 +39,12 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
   const [valorLuz, setValorLuz] = useState(
     despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).valorTotal : 0
   );
+  const [dataLeituraAnterior, setDataLeituraAnterior] = useState(
+    despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).dataLeituraAnterior || '' : ''
+  );
+  const [dataLeituraAtual, setDataLeituraAtual] = useState(
+    despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).dataLeituraAtual || '' : ''
+  );
   const [consumoKwhTotal, setConsumoKwhTotal] = useState<number | undefined>(
     despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).consumoKwhTotal : undefined
   );
@@ -172,6 +178,15 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
         return;
       }
 
+      if ((dataLeituraAnterior || dataLeituraAtual) && (!dataLeituraAnterior || !dataLeituraAtual)) {
+        alert('Informe as duas datas de leitura para calcular o período da conta.');
+        return;
+      }
+      if (dataLeituraAnterior && dataLeituraAtual && dataLeituraAnterior >= dataLeituraAtual) {
+        alert('A data da leitura atual deve ser posterior à leitura anterior.');
+        return;
+      }
+
       const consumoKwhPorCasaArray: ConsumoKwhPorCasa[] | undefined = usarKwhPorCasa
         ? [
             { casaId: casa1IdLuz, kwh: kwhPorCasa[casa1IdLuz] || 0 },
@@ -196,6 +211,11 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
           valorTotal: valorLuz,
           consumoKwhTotal: consumoKwhTotal,
           consumoKwhPorCasa: consumoKwhPorCasaArray,
+          dataLeituraAnterior: dataLeituraAnterior || undefined,
+          dataLeituraAtual: dataLeituraAtual || undefined,
+          casasPrimeiraCobrancaProporcional: despesaEditando?.tipo === 'luz'
+            ? (despesaEditando as DespesaLuz).casasPrimeiraCobrancaProporcional
+            : undefined,
           imagensComprovantes: todasImagens.length > 0 ? todasImagens : undefined,
           imagemContador: imagemContador || undefined,
         };
@@ -332,6 +352,20 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
                     onChange={e => setValorLuz(parseFloat(e.target.value) || 0)}
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="dataLeituraAnterior">Data da leitura anterior (companhia)</label>
+                  <input type="date" id="dataLeituraAnterior" value={dataLeituraAnterior}
+                    onChange={e => setDataLeituraAnterior(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="dataLeituraAtual">Data da leitura atual (companhia)</label>
+                  <input type="date" id="dataLeituraAtual" value={dataLeituraAtual}
+                    onChange={e => setDataLeituraAtual(e.target.value)} />
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
+                    Informe as datas reais da fatura. Elas permitem calcular a primeira cobrança proporcional por dias no Relatório Mensal.
+                  </small>
                 </div>
 
                 <div className="form-group">
