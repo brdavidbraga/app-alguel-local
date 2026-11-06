@@ -78,7 +78,7 @@ export function ContadorKwhPage() {
       return;
     }
 
-    const leituraAtualNum = typeof leituraAtual === 'number' ? leituraAtual : parseFloat(leituraAtual.toString());
+    const leituraAtualNum = Number(leituraAtual);
     
     if (isNaN(leituraAtualNum) || leituraAtualNum <= 0) {
       alert('Digite uma leitura válida');
@@ -251,7 +251,7 @@ export function ContadorKwhPage() {
                       <>
                         <strong>Consumo Estimado:</strong>{' '}
                         {(() => {
-                          const leituraAtualNum = typeof leituraAtual === 'number' ? leituraAtual : parseFloat(leituraAtual.toString());
+                          const leituraAtualNum = Number(leituraAtual);
                           if (isNaN(leituraAtualNum)) return '0';
                           const consumo = leituraAtualNum - leituraAnterior;
                           return consumo >= 0 ? consumo.toFixed(2).replace(/\.?0+$/, '') : '0';
