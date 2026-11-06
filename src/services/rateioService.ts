@@ -147,7 +147,7 @@ export const rateioService = {
         const despesa = d as any;
         let valorPorInquilino = 0;
         if (despesa.tipoRateio === 'por-pessoa') {
-          valorPorInquilino = despesa.valorTotal / casa.quantidadePessoas;
+          valorPorInquilino = despesa.valorTotal;
         } else {
           valorPorInquilino = despesa.valorTotal;
         }
@@ -167,7 +167,7 @@ export const rateioService = {
           : luz.valorPorCasa2;
     }
 
-    // Outras despesas já estão calculadas por inquilino
+    // Outras despesas exibidas como total por casa
     // A despesa cadastrada representa sempre o valor total da casa.
     const outrasDespesasTotal = despesasMes.filter(d => d.tipo === 'outras' && d.casaId === casaId)
       .reduce((sum, d) => sum + d.valorTotal, 0);
