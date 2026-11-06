@@ -1,0 +1,5 @@
+/* Tailwind e componentes shadcn/ui ficam disponíveis sem substituir o CSS atual.
+   O preflight global está desativado em tailwind.config.ts. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
