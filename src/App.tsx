@@ -16,7 +16,7 @@ function Navigation() {
       <div className="nav-container">
         <div className="nav-logo-container">
           <div className="nav-logo-icon">🏠</div>
-          <h1 className="nav-logo">GestãoCasa</h1>
+          <h1 className="nav-logo">Gestão de Aluguel</h1>
         </div>
         <ul className="nav-menu">
           <li>
