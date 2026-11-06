@@ -1,25 +1,15 @@
-import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { CasasPage } from './pages/CasasPage';
 import { DespesasPage } from './pages/DespesasPage';
 import { RelatorioPage } from './pages/RelatorioPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContadorKwhPage } from './pages/ContadorKwhPage';
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage';
-import { LoginPage } from './pages/LoginPage';
-import { ProtectedRoute } from './components/ProtectedRoute';
 import { ThemeToggle } from './components/ThemeToggle';
 import './App.css';
 
 function Navigation() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const usuarioNome = localStorage.getItem('usuarioNome') || 'Usuário';
-
-  const handleLogout = () => {
-    localStorage.removeItem('usuarioLogado');
-    localStorage.removeItem('usuarioNome');
-    navigate('/login');
-  };
 
   return (
     <nav className="main-nav">
@@ -77,19 +67,7 @@ function Navigation() {
               Configurações
             </Link>
           </li>
-          <li style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <ThemeToggle />
-            <span style={{ color: 'var(--text-secondary)' }}>
-              {usuarioNome}
-            </span>
-            <button
-              className="btn btn-secondary"
-              onClick={handleLogout}
-              style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-            >
-              Sair
-            </button>
-          </li>
+          <li style={{ marginLeft: 'auto' }}><ThemeToggle /></li>
         </ul>
       </div>
     </nav>
@@ -119,17 +97,7 @@ function App() {
   return (
     <Router>
       <div className="app">
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <AppContent />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+        <AppContent />
       </div>
     </Router>
   );
