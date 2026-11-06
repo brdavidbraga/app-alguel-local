@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { previousReading, recalculateReadings } from '../services/contadorService';
 import { ContadorKwh, Casa } from '../types';
 import { storageService } from '../services/storage';
 import './ContadorKwhPage.css';
@@ -26,24 +27,10 @@ export function ContadorKwhPage() {
   const [casaId, setCasaId] = useState('');
   const [leituraAtual, setLeituraAtual] = useState<number | ''>('');
 
-  // Quando o mês ou casa mudar, buscar leitura anterior
-  // Buscar sempre do localStorage para garantir dados atualizados
-  const leituraAnterior = useMemo(() => {
-    if (!casaId || !mes) return undefined;
-    
-    // Buscar sempre do localStorage para ter os dados mais recentes
-    const todosContadores = contadorStorage.getContadores();
-    
-    const mesAnterior = new Date(mes + '-01');
-    mesAnterior.setMonth(mesAnterior.getMonth() - 1);
-    const mesAnteriorStr = mesAnterior.toISOString().slice(0, 7);
-
-    const contadorAnterior = todosContadores.find(
-      c => c.casaId === casaId && c.mes === mesAnteriorStr
-    );
-
-    return contadorAnterior?.leituraAtual;
-  }, [casaId, mes, contadores]);
+  const leituraAnterior = useMemo(
+    () => casaId && mes ? previousReading(contadores, casaId, mes, contadorEditando?.id)?.leituraAtual : undefined,
+    [casaId, mes, contadores, contadorEditando]
+  );
 
   const formatMes = (mes: string) => {
     const [ano, mesNum] = mes.split('-');
@@ -73,51 +60,38 @@ export function ContadorKwhPage() {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!casaId || leituraAtual === '' || (typeof leituraAtual === 'number' && leituraAtual <= 0)) {
+    if (!casaId || !mes || leituraAtual === '') {
       alert('Preencha todos os campos obrigatórios');
       return;
     }
 
-    const leituraAtualNum = typeof leituraAtual === 'number' ? leituraAtual : parseFloat(leituraAtual.toString());
+    const leituraAtualNum = Number(leituraAtual);
     
-    if (isNaN(leituraAtualNum) || leituraAtualNum <= 0) {
+    if (!Number.isFinite(leituraAtualNum) || leituraAtualNum < 0) {
       alert('Digite uma leitura válida');
       return;
     }
-
-    // Buscar leitura anterior novamente do localStorage para garantir que está atualizada
-    const mesAnterior = new Date(mes + '-01');
-    mesAnterior.setMonth(mesAnterior.getMonth() - 1);
-    const mesAnteriorStr = mesAnterior.toISOString().slice(0, 7);
-
-    // Buscar do localStorage para ter os dados mais recentes
-    const todosContadores = contadorStorage.getContadores();
-    const contadorAnterior = todosContadores.find(
-      c => c.casaId === casaId && c.mes === mesAnteriorStr
-    );
-
-    const leituraAnteriorNum = contadorAnterior?.leituraAtual || 0;
-    const consumo = leituraAtualNum - leituraAnteriorNum;
 
     const contador: ContadorKwh = {
       id: contadorEditando?.id || crypto.randomUUID(),
       casaId,
       mes,
       leituraAtual: leituraAtualNum,
-      leituraAnterior: contadorAnterior ? leituraAnteriorNum : undefined,
-      consumo: consumo >= 0 ? consumo : 0,
+      consumo: 0,
       dataLeitura: new Date().toISOString(),
     };
 
-    let updatedContadores: ContadorKwh[];
-    if (contadorEditando) {
-      updatedContadores = contadores.map(c =>
-        c.id === contador.id ? contador : c
-      );
-    } else {
-      updatedContadores = [...contadores, contador];
-    }
+    const candidate = contadorEditando
+      ? contadores.map(c => c.id === contador.id ? contador : c)
+      : [...contadores, contador];
 
+    let updatedContadores: ContadorKwh[];
+    try {
+      updatedContadores = recalculateReadings(candidate);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Erro ao calcular consumo.');
+      return;
+    }
     setContadores(updatedContadores);
     contadorStorage.saveContadores(updatedContadores);
     setShowForm(false);
@@ -131,14 +105,6 @@ export function ContadorKwhPage() {
     setMes(new Date().toISOString().slice(0, 7));
   };
 
-  // Recarregar contadores quando o formulário for aberto
-  useEffect(() => {
-    if (showForm) {
-      const contadoresAtualizados = contadorStorage.getContadores();
-      setContadores(contadoresAtualizados);
-    }
-  }, [showForm]);
-
   const handleEdit = (contador: ContadorKwh) => {
     setContadorEditando(contador);
     setCasaId(contador.casaId);
@@ -148,10 +114,14 @@ export function ContadorKwhPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta leitura?')) {
-      const updatedContadores = contadores.filter(c => c.id !== id);
-      setContadores(updatedContadores);
-      contadorStorage.saveContadores(updatedContadores);
+    if (confirm('Excluir esta leitura? Os consumos posteriores serão recalculados.')) {
+      try {
+        const updatedContadores = recalculateReadings(contadores.filter(c => c.id !== id));
+        setContadores(updatedContadores);
+        contadorStorage.saveContadores(updatedContadores);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Erro ao recalcular leituras.');
+      }
     }
   };
 
@@ -240,21 +210,17 @@ export function ContadorKwhPage() {
               <div style={{ padding: '1rem', background: 'var(--bg-color)', borderRadius: '0.375rem', marginBottom: '1.5rem' }}>
                 {leituraAnterior !== undefined ? (
                   <>
-                    <strong>Leitura Anterior ({(() => {
-                      const mesAnterior = new Date(mes + '-01');
-                      mesAnterior.setMonth(mesAnterior.getMonth() - 1);
-                      return formatMes(mesAnterior.toISOString().slice(0, 7));
-                    })()}):</strong>{' '}
+                    <strong>Leitura anterior registrada:</strong>{' '}
                     {leituraAnterior.toFixed(2).replace(/\.?0+$/, '')} kWh
                     <br />
                     {leituraAtual !== '' && (
                       <>
                         <strong>Consumo Estimado:</strong>{' '}
                         {(() => {
-                          const leituraAtualNum = typeof leituraAtual === 'number' ? leituraAtual : parseFloat(leituraAtual.toString());
+                          const leituraAtualNum = Number(leituraAtual);
                           if (isNaN(leituraAtualNum)) return '0';
                           const consumo = leituraAtualNum - leituraAnterior;
-                          return consumo >= 0 ? consumo.toFixed(2).replace(/\.?0+$/, '') : '0';
+                          return consumo >= 0 ? consumo.toFixed(2) : 'Leitura menor que a anterior';
                         })()}{' '}
                         kWh
                       </>
@@ -262,9 +228,9 @@ export function ContadorKwhPage() {
                   </>
                 ) : (
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                    <strong>Leitura Anterior:</strong> Não encontrada para o mês anterior.
+                    <strong>Leitura Anterior:</strong> Nenhuma leitura anterior cadastrada para esta casa.
                     <br />
-                    <small>Esta será a primeira leitura registrada para esta casa neste período.</small>
+                    <small>O consumo inicial será 0 kWh até existir uma leitura de referência.</small>
                   </div>
                 )}
               </div>

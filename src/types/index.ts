@@ -86,6 +86,7 @@ export interface RelatorioMensal {
   luz: RateioLuz | null;
   outrasDespesas: ItemRelatorio[];
   totalPorInquilino: number;
+  totalPorCasa: number;
 }
 
 export interface ContadorKwh {

@@ -10,7 +10,6 @@ interface ImageUploadProps {
 
 export function ImageUpload({
   casaId,
-  despesaId,
   imagensExistentes = [],
   onImagesChange,
 }: ImageUploadProps) {

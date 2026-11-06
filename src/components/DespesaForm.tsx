@@ -158,6 +158,12 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
         valorTotal: valorAgua,
         imagensComprovantes: imagensAgua.length > 0 ? imagensAgua : undefined,
       };
+      const casasAtivas = casas.filter(c => c.status === 'ativo');
+      if (casasAtivas.length === 0 || casasAtivas.some(c => c.quantidadePessoas < 1) ||
+          valorAgua < 38 * casasAtivas.length) {
+        alert('A conta de água deve cobrir R$ 38,00 por casa ativa e todas devem ter moradores.');
+        return;
+      }
       onSave(despesa);
     } else if (tipo === 'luz') {
       // Selecionar par específico
@@ -193,6 +199,13 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
           imagensComprovantes: todasImagens.length > 0 ? todasImagens : undefined,
           imagemContador: imagemContador || undefined,
         };
+        if (usarKwhPorCasa) {
+          const total = (kwhPorCasa[casa1IdLuz] || 0) + (kwhPorCasa[casa2IdLuz] || 0);
+          if (consumoKwhTotal !== undefined && Math.abs(total - consumoKwhTotal) > 0.001) {
+            alert('A soma dos consumos das casas deve ser igual ao consumo total informado.');
+            return;
+          }
+        }
         onSave(despesa);
     } else {
       if (!casaIdOutras || !descricaoOutras) {
