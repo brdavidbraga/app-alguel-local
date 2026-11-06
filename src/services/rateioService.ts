@@ -1,12 +1,17 @@
 import { Casa, Despesa, DespesaAgua, DespesaLuz, RateioAgua, RateioLuz } from '../types';
 
 const TAXA_FIXA_AGUA = 38.0;
+const roundMoney = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const rateioService = {
   calcularRateioAgua(despesa: DespesaAgua, casa: Casa, todasCasasAtivas: Casa[]): RateioAgua {
+    if (!todasCasasAtivas.some(c => c.id === casa.id)) throw new Error('Casa não está ativa no rateio de água.');
+    if (!Number.isFinite(despesa.valorTotal) || despesa.valorTotal < 0) throw new Error('Valor de água inválido.');
+    if (todasCasasAtivas.some(c => !Number.isInteger(c.quantidadePessoas) || c.quantidadePessoas < 1)) throw new Error('Quantidade de moradores inválida.');
     const taxaFixaCasa = TAXA_FIXA_AGUA;
     const totalTaxaFixa = taxaFixaCasa * todasCasasAtivas.length;
-    const valorRestante = Math.max(0, despesa.valorTotal - totalTaxaFixa);
+    if (despesa.valorTotal < totalTaxaFixa) throw new Error('Conta de água inferior às taxas fixas das casas.');
+    const valorRestante = despesa.valorTotal - totalTaxaFixa;
     
     // Total de pessoas em todas as casas ativas
     const totalPessoas = todasCasasAtivas.reduce((sum, c) => sum + c.quantidadePessoas, 0);
@@ -19,7 +24,12 @@ export const rateioService = {
     const valorTotalPorInquilino = taxaFixaCasa + valorPorPessoa;
     
     // Valor total que a casa paga (taxa fixa + valor por pessoa × quantidade de pessoas)
-    const valorTotalPorCasa = taxaFixaCasa + (valorPorPessoa * casa.quantidadePessoas);
+    // Distribuição em centavos; a última casa absorve o arredondamento residual.
+    const index = todasCasasAtivas.findIndex(c => c.id === casa.id);
+    const previous = todasCasasAtivas.slice(0, index).reduce((sum, c) => sum + roundMoney(taxaFixaCasa + valorPorPessoaGlobal * c.quantidadePessoas), 0);
+    const valorTotalPorCasa = index === todasCasasAtivas.length - 1
+      ? roundMoney(despesa.valorTotal - previous)
+      : roundMoney(taxaFixaCasa + valorPorPessoa * casa.quantidadePessoas);
 
     return {
       taxaFixaCasa,
@@ -50,14 +60,17 @@ export const rateioService = {
       if (kwhCasa2 === 0) kwhCasa2 = Math.max(0, totalKwhVal - kwhCasa1);
     }
     const totalKwh = totalKwhInformado ? despesa.consumoKwhTotal! : kwhCasa1 + kwhCasa2;
+    if (!Number.isFinite(despesa.valorTotal) || despesa.valorTotal < 0) throw new Error('Valor de energia inválido.');
+    if (temKwhPorCasa && (!Number.isFinite(kwhCasa1) || !Number.isFinite(kwhCasa2) || kwhCasa1 < 0 || kwhCasa2 < 0)) throw new Error('Consumo de energia inválido.');
+    if (temKwhPorCasa && totalKwhInformado && Math.abs(kwhCasa1 + kwhCasa2 - totalKwh) > 0.001) throw new Error('A soma dos consumos por casa difere do consumo total.');
 
     // Luz rateada pelo kWh consumido pela casa
     if (temKwhPorCasa && totalKwh > 0) {
-      valorPorCasa1 = (despesa.valorTotal * kwhCasa1) / totalKwh;
-      valorPorCasa2 = (despesa.valorTotal * kwhCasa2) / totalKwh;
+      valorPorCasa1 = roundMoney((despesa.valorTotal * kwhCasa1) / totalKwh);
+      valorPorCasa2 = roundMoney(despesa.valorTotal - valorPorCasa1);
     } else {
-      valorPorCasa1 = despesa.valorTotal / 2;
-      valorPorCasa2 = despesa.valorTotal / 2;
+      valorPorCasa1 = roundMoney(despesa.valorTotal / 2);
+      valorPorCasa2 = roundMoney(despesa.valorTotal - valorPorCasa1);
     }
 
     // Luz é rateada pelo kWh consumido pela casa, não por pessoas
@@ -84,7 +97,7 @@ export const rateioService = {
     const despesasMes = despesas.filter(d => d.mes === mes);
 
     // Aluguel
-    const aluguel = casa.valorAluguel;
+    const aluguel = casa.valorAluguel; // Valor total da casa
 
     // Água - aplica para todas as casas ativas
     const despesaAgua = despesasMes.find(
@@ -154,15 +167,14 @@ export const rateioService = {
     }
 
     // Outras despesas já estão calculadas por inquilino
-    const outrasDespesasTotal = outrasDespesas.reduce((sum, item) => sum + item.valor, 0);
+    // A despesa cadastrada representa sempre o valor total da casa.
+    const outrasDespesasTotal = despesasMes.filter(d => d.tipo === 'outras' && d.casaId === casaId)
+      .reduce((sum, d) => sum + d.valorTotal, 0);
 
     // Total por inquilino = Aluguel + Água valor total por casa + Luz valor por casa + outras despesas
     // NOTA: Água e Luz são valores totais da casa, não divididos por pessoas
-    const totalPorInquilino =
-      aluguel +
-      agua.valorTotalPorCasa +
-      valorLuzPorCasa +
-      outrasDespesasTotal;
+    const totalPorCasa = roundMoney(aluguel + agua.valorTotalPorCasa + valorLuzPorCasa + outrasDespesasTotal);
+    const totalPorInquilino = roundMoney(totalPorCasa / casa.quantidadePessoas);
 
     // Log detalhado do cálculo
     console.log('=== CÁLCULO TOTAL POR INQUILINO ===');
@@ -199,6 +211,7 @@ export const rateioService = {
       luz,
       outrasDespesas,
       totalPorInquilino,
+      totalPorCasa,
     };
   },
 };
