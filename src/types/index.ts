@@ -43,6 +43,9 @@ export interface DespesaLuz {
   consumoKwhPorCasa?: ConsumoKwhPorCasa[]; // kWh por cada casa do par
   imagensComprovantes?: ImagemComprovante[]; // Imagens dos comprovantes por casa
   imagemContador?: ImagemComprovante; // Imagem do contador/relógio de luz
+  dataLeituraAnterior?: string; // Data real da leitura anterior (YYYY-MM-DD)
+  dataLeituraAtual?: string; // Data real da leitura atual (YYYY-MM-DD)
+  casasPrimeiraCobrancaProporcional?: string[]; // Casas com opção ativada no relatório
 }
 
 export interface DespesaOutras {
