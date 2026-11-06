@@ -142,10 +142,10 @@ export function RelatorioPage() {
                     ))}
                   <tr className="total-row">
                     <td>
-                      <strong>DESPESAS</strong>
+                      <strong>TOTAL DA CASA (ALUGUEL + DESPESAS)</strong>
                     </td>
                     <td>
-                      <strong>R$ {relatorio.totalPorInquilino.toFixed(2)}</strong>
+                      <strong>R$ {relatorio.totalPorCasa.toFixed(2)}</strong>
                     </td>
                   </tr>
                 </tbody>
