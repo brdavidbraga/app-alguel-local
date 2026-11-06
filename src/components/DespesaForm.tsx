@@ -28,6 +28,13 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
     return [];
   });
 
+  const [dataLeituraAnterior, setDataLeituraAnterior] = useState(
+    despesaEditando?.tipo === 'agua' ? (despesaEditando as DespesaAgua).dataLeituraAnterior || '' : ''
+  );
+  const [dataLeituraAtual, setDataLeituraAtual] = useState(
+    despesaEditando?.tipo === 'agua' ? (despesaEditando as DespesaAgua).dataLeituraAtual || '' : ''
+  );
+
   // Luz
   const [parSelecionado, setParSelecionado] = useState<string>('');
   const [casa1IdLuz, setCasa1IdLuz] = useState(
@@ -38,12 +45,6 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
   );
   const [valorLuz, setValorLuz] = useState(
     despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).valorTotal : 0
-  );
-  const [dataLeituraAnterior, setDataLeituraAnterior] = useState(
-    despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).dataLeituraAnterior || '' : ''
-  );
-  const [dataLeituraAtual, setDataLeituraAtual] = useState(
-    despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).dataLeituraAtual || '' : ''
   );
   const [consumoKwhTotal, setConsumoKwhTotal] = useState<number | undefined>(
     despesaEditando?.tipo === 'luz' ? (despesaEditando as DespesaLuz).consumoKwhTotal : undefined
@@ -156,12 +157,25 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
     e.preventDefault();
 
     if (tipo === 'agua') {
+      if ((dataLeituraAnterior || dataLeituraAtual) && (!dataLeituraAnterior || !dataLeituraAtual)) {
+        alert('Informe as duas datas de leitura da água.');
+        return;
+      }
+      if (dataLeituraAnterior && dataLeituraAtual && dataLeituraAnterior >= dataLeituraAtual) {
+        alert('A data da leitura atual deve ser posterior à anterior.');
+        return;
+      }
       // Água aplica para todas as casas ativas
       const despesa: DespesaAgua = {
         id: despesaEditando?.id || crypto.randomUUID(),
         tipo: 'agua',
         mes,
         valorTotal: valorAgua,
+        dataLeituraAnterior: dataLeituraAnterior || undefined,
+        dataLeituraAtual: dataLeituraAtual || undefined,
+        casasPrimeiraCobrancaProporcional: despesaEditando?.tipo === 'agua'
+          ? (despesaEditando as DespesaAgua).casasPrimeiraCobrancaProporcional
+          : undefined,
         imagensComprovantes: imagensAgua.length > 0 ? imagensAgua : undefined,
       };
       const casasAtivas = casas.filter(c => c.status === 'ativo');
@@ -175,15 +189,6 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
       // Selecionar par específico
       if (!parSelecionado || !casa1IdLuz || !casa2IdLuz) {
         alert('Selecione um par de casas');
-        return;
-      }
-
-      if ((dataLeituraAnterior || dataLeituraAtual) && (!dataLeituraAnterior || !dataLeituraAtual)) {
-        alert('Informe as duas datas de leitura para calcular o período da conta.');
-        return;
-      }
-      if (dataLeituraAnterior && dataLeituraAtual && dataLeituraAnterior >= dataLeituraAtual) {
-        alert('A data da leitura atual deve ser posterior à leitura anterior.');
         return;
       }
 
@@ -211,11 +216,6 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
           valorTotal: valorLuz,
           consumoKwhTotal: consumoKwhTotal,
           consumoKwhPorCasa: consumoKwhPorCasaArray,
-          dataLeituraAnterior: dataLeituraAnterior || undefined,
-          dataLeituraAtual: dataLeituraAtual || undefined,
-          casasPrimeiraCobrancaProporcional: despesaEditando?.tipo === 'luz'
-            ? (despesaEditando as DespesaLuz).casasPrimeiraCobrancaProporcional
-            : undefined,
           imagensComprovantes: todasImagens.length > 0 ? todasImagens : undefined,
           imagemContador: imagemContador || undefined,
         };
@@ -293,6 +293,20 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
               </small>
             </div>
 
+            <div className="form-group">
+              <label htmlFor="dataLeituraAnterior">Água — leitura anterior da companhia</label>
+              <input type="date" id="dataLeituraAnterior" value={dataLeituraAnterior}
+                onChange={e => setDataLeituraAnterior(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="dataLeituraAtual">Água — leitura atual da companhia</label>
+              <input type="date" id="dataLeituraAtual" value={dataLeituraAtual}
+                onChange={e => setDataLeituraAtual(e.target.value)} />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
+                Datas opcionais. Use-as para a primeira cobrança proporcional de água no Relatório Mensal.
+              </small>
+            </div>
+
             {/* Upload de imagens da conta de água */}
             <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'var(--bg-color)', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
               <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Comprovante da Conta de Água</h3>
@@ -352,20 +366,6 @@ export function DespesaForm({ casas, despesa: despesaEditando, onSave, onCancel 
                     onChange={e => setValorLuz(parseFloat(e.target.value) || 0)}
                     required
                   />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="dataLeituraAnterior">Data da leitura anterior (companhia)</label>
-                  <input type="date" id="dataLeituraAnterior" value={dataLeituraAnterior}
-                    onChange={e => setDataLeituraAnterior(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="dataLeituraAtual">Data da leitura atual (companhia)</label>
-                  <input type="date" id="dataLeituraAtual" value={dataLeituraAtual}
-                    onChange={e => setDataLeituraAtual(e.target.value)} />
-                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
-                    Informe as datas reais da fatura. Elas permitem calcular a primeira cobrança proporcional por dias no Relatório Mensal.
-                  </small>
                 </div>
 
                 <div className="form-group">
